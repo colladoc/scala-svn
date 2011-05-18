@@ -43,7 +43,7 @@ class Index(universe: Universe) extends HtmlPage {
       </div>
       { browser }
       <div id="content" class="ui-layout-center">
-        <iframe name="template" src={ relativeLinkTo{List("package.html")} }/>
+        <iframe name="template" src={ relativeLinkTo{List("history.html")} }/>
       </div>
     </body>
 
