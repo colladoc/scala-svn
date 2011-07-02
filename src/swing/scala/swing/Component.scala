@@ -122,7 +122,7 @@ abstract class Component extends UIElement {
   
   
 
-  @deprecated("Use mouse instead") lazy val Mouse = mouse
+  @deprecated("Use mouse instead", "2.8.0") lazy val Mouse = mouse
   
   /**
    * Contains publishers for various mouse events. They are separated for 
@@ -200,7 +200,7 @@ abstract class Component extends UIElement {
   def requestFocusInWindow() = peer.requestFocusInWindow()
   def hasFocus: Boolean = peer.isFocusOwner
   
-  protected override def onFirstSubscribe {
+  protected override def onFirstSubscribe() {
     super.onFirstSubscribe
     // TODO: deprecated, remove after 2.8
     peer.addComponentListener(new java.awt.event.ComponentListener {

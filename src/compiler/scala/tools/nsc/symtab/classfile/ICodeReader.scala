@@ -101,9 +101,9 @@ abstract class ICodeReader extends ClassfileParser {
         (jflags, NoSymbol)
       else {
         val owner = getOwner(jflags)
-        var sym = owner.info.member(name).suchThat(old => sameType(old.tpe, tpe));
+        var sym = owner.info.findMember(name, 0, 0, false).suchThat(old => sameType(old.tpe, tpe));
         if (sym == NoSymbol)
-          sym = owner.info.member(newTermName(name + nme.LOCAL_SUFFIX_STRING)).suchThat(old => old.tpe =:= tpe);
+          sym = owner.info.findMember(newTermName(name + nme.LOCAL_SUFFIX_STRING), 0, 0, false).suchThat(old => old.tpe =:= tpe);
         if (sym == NoSymbol) {
           log("Could not find symbol for " + name + ": " + tpe)
           log(owner.info.member(name).tpe + " : " + tpe)
@@ -226,7 +226,7 @@ abstract class ICodeReader extends ClassfileParser {
     val codeLength = in.nextInt
     val code = new LinearCode
 
-    def parseInstruction {
+    def parseInstruction() {
       import opcodes._
       import code._
       var size = 1 // instruction size
@@ -739,7 +739,7 @@ abstract class ICodeReader extends ClassfileParser {
       method.code
     }
     
-    def resolveDups {
+    def resolveDups() {
       import opcodes._
       
       val tfa = new analysis.MethodTFA() {
@@ -922,7 +922,7 @@ abstract class ICodeReader extends ClassfileParser {
     }
     
     /** Recover def-use chains for NEW and initializers. */
-    def resolveNEWs {
+    def resolveNEWs() {
       import opcodes._
       
       val rdef = new reachingDefinitions.ReachingDefinitionsAnalysis
@@ -957,7 +957,7 @@ abstract class ICodeReader extends ClassfileParser {
     def getLocal(idx: Int, kind: TypeKind): Local = {
       assert(idx < maxLocals, "Index too large for local variable.");
 
-      def checkValidIndex {
+      def checkValidIndex() {
         locals.get(idx - 1) match {
           case Some(others) if others exists (_._2.isWideType) =>
             global.globalError("Illegal index: " + idx + " points in the middle of another local")

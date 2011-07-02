@@ -347,7 +347,7 @@ trait Namers { self: Analyzer =>
     
     def enterSym(tree: Tree): Context = {
       def finishWith(tparams: List[TypeDef]) { enterSymFinishWith(tree, tparams) }
-      def finish = finishWith(Nil)
+      def finish() = finishWith(Nil)
       def sym = tree.symbol
       if (sym != NoSymbol) {
         if (forInteractive && sym != null && sym.owner.isTerm) {
@@ -454,6 +454,8 @@ trait Namers { self: Analyzer =>
             finishWith(tparams)
           case DefDef(mods, name, tparams, _, _, _) =>
             tree.symbol = enterNewMethod(tree, name, mods.flags, mods, tree.pos)
+            if (mods.annotations.exists(ann => isAnn(ann, "bridge")))
+              tree.symbol setFlag BRIDGE
             finishWith(tparams)
           case TypeDef(mods, name, tparams, _) =>
             var flags: Long = mods.flags
@@ -496,14 +498,15 @@ trait Namers { self: Analyzer =>
     def enterAccessorMethod(tree: Tree, name: Name, flags: Long, mods: Modifiers): TermSymbol = 
       enterNewMethod(tree, name, flags, mods, tree.pos.focus)
 
+    def isAnn(ann: Tree, demand: String) = ann match {
+      case Apply(Select(New(Ident(name)), _), _) =>
+        name.toString == demand
+      case Apply(Select(New(Select(pre, name)), _), _) =>
+        name.toString == demand
+      case _ => false
+    }
+
     private def addBeanGetterSetter(vd: ValDef, getter: Symbol) {
-      def isAnn(ann: Tree, demand: String) = ann match {
-        case Apply(Select(New(Ident(name)), _), _) =>
-          name.toString == demand
-        case Apply(Select(New(Select(pre, name)), _), _) =>
-          name.toString == demand
-        case _ => false
-      }
       val ValDef(mods, name, tpt, _) = vd
       val hasBP = mods.annotations.exists(isAnn(_, "BeanProperty"))
       val hasBoolBP = mods.annotations.exists(isAnn(_, "BooleanBeanProperty"))
@@ -1122,13 +1125,9 @@ trait Namers { self: Analyzer =>
      * @param namer is the namer of the module class (the comp. obj)
      */
     def addApplyUnapply(cdef: ClassDef, namer: Namer) {
-      if (!(cdef.symbol hasFlag ABSTRACT)) {
-        val applyMethod = caseModuleApplyMeth(cdef)
-        if (applyMethod.vparamss.size > 2)
-          context.error(cdef.symbol.pos, "case classes limited by implementation: maximum of 2 constructor parameter lists.")
-                  
-        namer.enterSyntheticSym(applyMethod)
-      }
+      if (!cdef.symbol.hasAbstractFlag)
+        namer.enterSyntheticSym(caseModuleApplyMeth(cdef))
+        
       namer.enterSyntheticSym(caseModuleUnapplyMeth(cdef))
     }
 
@@ -1240,8 +1239,14 @@ trait Namers { self: Analyzer =>
                 case ImportSelector(from, _, to, _) :: rest =>
                   if (from != nme.WILDCARD && base != ErrorType) {
                     isValidSelector(from) {
-                      if (currentRun.compileSourceFor(expr, from))
-                        return typeSig(tree)
+                      if (currentRun.compileSourceFor(expr, from)) {
+                        // XXX This used to be "return typeSig(tree)" but since this method
+                        // returns Unit, that is deceptive at best.  Just in case it is side-effecting
+                        // somehow, I left the call in before the return; if you know it is
+                        // not side effecting, please delete the call.
+                        typeSig(tree)
+                        return
+                      }
                       
                       def notMember = context.error(tree.pos, from.decode + " is not a member of " + expr)
                       // for Java code importing Scala objects

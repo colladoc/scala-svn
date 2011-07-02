@@ -25,6 +25,7 @@ abstract class ExplicitOuter extends InfoTransform
   import global._
   import definitions._
   import CODE._
+  import Debug.TRACE
 
   /** The following flags may be set by this phase: */
   override def phaseNewFlags: Long = notPRIVATE | notPROTECTED | lateFINAL
@@ -66,6 +67,15 @@ abstract class ExplicitOuter extends InfoTransform
     assert(result != NoSymbol, "no outer field in "+clazz+" at "+phase)
     
     result
+  }
+  
+  class RemoveBindingsTransformer(toRemove: Set[Symbol]) extends Transformer {  
+    override def transform(tree: Tree) = tree match {
+      case Bind(_, body) if toRemove(tree.symbol) => 
+        TRACE("Dropping unused binding: " + tree.symbol)
+        super.transform(body)
+      case _                                      => super.transform(tree)
+    }
   }
 
   /** Issue a migration warning for instance checks which might be on an Array and
@@ -169,7 +179,7 @@ abstract class ExplicitOuter extends InfoTransform
       // class needs to have a common naming scheme, independently of whether
       // the field was accessed from an inner class or not. See #2946
       if (sym.owner.isTrait && sym.hasLocalFlag &&
-              ((sym.getter(sym.owner.toInterface) == NoSymbol) && !sym.isLazyAccessor))
+              (sym.getter(sym.owner.toInterface) == NoSymbol))
         sym.makeNotPrivate(sym.owner)
       tp
   }
@@ -374,18 +384,23 @@ abstract class ExplicitOuter extends InfoTransform
       
       val nguard = new ListBuffer[Tree]
       val ncases =
-        for (CaseDef(p, guard, b) <- cases) yield {
+        for (CaseDef(pat, guard, body) <- cases) yield {
+          // Strip out any unused pattern bindings up front
+          val patternIdents = for (b @ Bind(_, _) <- pat) yield b.symbol
+          val references: Set[Symbol] = Set(guard, body) flatMap { t => for (id @ Ident(name) <- t) yield id.symbol }
+          val (used, unused) = patternIdents partition references
+          val strippedPat = if (unused.isEmpty) pat else new RemoveBindingsTransformer(unused.toSet) transform pat
+          
           val gdcall = 
             if (guard == EmptyTree) EmptyTree
             else {
-              val vs       = Pattern(p).deepBoundVariables
-              val guardDef = makeGuardDef(vs, guard)
-              nguard       += transform(guardDef) // building up list of guards
+              val guardDef = makeGuardDef(used, guard)
+              nguard += transform(guardDef) // building up list of guards
               
-              localTyper typed (Ident(guardDef.symbol) APPLY (vs map Ident))
+              localTyper typed (Ident(guardDef.symbol) APPLY (used map Ident))
             }
           
-          (CASE(transform(p)) IF gdcall) ==> transform(b)
+          (CASE(transform(strippedPat)) IF gdcall) ==> transform(body)
         }
       
       def isUncheckedAnnotation(tpe: Type) = tpe hasAnnotation UncheckedClass
@@ -520,7 +535,7 @@ abstract class ExplicitOuter extends InfoTransform
 
   class Phase(prev: scala.tools.nsc.Phase) extends super.Phase(prev) {
     override val checkable = false
-    override def run {
+    override def run() {
       super.run
       Pattern.clear()    // clear the cache
     }

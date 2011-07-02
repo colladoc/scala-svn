@@ -18,7 +18,7 @@ import java.sql._
  *
  *  @author  Gilles Dubochet
  */
-@deprecated(DbcIsDeprecated) case class Database(dbms: Vendor) {
+@deprecated(DbcIsDeprecated, "2.9.0") case class Database(dbms: Vendor) {
   
   class Closed extends Exception {}
   
@@ -87,7 +87,7 @@ import java.sql._
 
   /** ..
    */
-  def close {
+  def close() {
     closing = true
     for (conn <- availableConnections) conn.close()
   }
@@ -134,7 +134,7 @@ import java.sql._
     new scala.dbc.result.Status[Unit] {
       val statement = statusStatement;
       if (debug) Console.println("## " + statement.sqlString);
-      def result = ();
+      def result = ()
       private val connection = getConnection;
       val jdbcStatement: java.sql.Statement = connection.createStatement();
       jdbcStatement.execute(statement.sqlString);

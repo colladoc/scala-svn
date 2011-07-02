@@ -127,7 +127,7 @@ trait MemberEntity extends Entity {
   /** Some deprecation message if this member is deprecated, or none otherwise. */
   def deprecation: Option[Body]
 
-  @deprecated("Use `inDefinitionTemplates` instead")
+  @deprecated("Use `inDefinitionTemplates` instead", "2.9.0")
   def inheritedFrom: List[TemplateEntity]
 
   /** For members representing values: the type of the value returned by this member; for members
@@ -161,7 +161,7 @@ trait MemberEntity extends Entity {
   /** Whether this member is implicit.  */
   def isImplicit: Boolean
 
-  /** Whether this member is abtract. */
+  /** Whether this member is abstract. */
   def isAbstract: Boolean
 
 }
@@ -204,7 +204,7 @@ trait DocTemplateEntity extends TemplateEntity with MemberEntity {
   /** The direct super-type of this template. */
   def parentType: Option[TypeEntity]
 
-  @deprecated("Use `linearizationTemplates` and `linearizationTypes` instead")
+  @deprecated("Use `linearizationTemplates` and `linearizationTypes` instead", "2.9.0")
   def linearization: List[(TemplateEntity, TypeEntity)]
 
   /** All class, trait and object templates which are part of this template's linearization, in lineratization order.
@@ -260,7 +260,7 @@ trait Class extends Trait with HigherKinded {
   def constructors: List[Constructor]
 
   /** The value parameters of this case class, or an empty list if this class is not a case class. As case class value
-    * paramters cannot be curried, the outer list has exactly one element. */
+    * parameters cannot be curried, the outer list has exactly one element. */
   def valueParams: List[List[ValueParam]]
   
 }

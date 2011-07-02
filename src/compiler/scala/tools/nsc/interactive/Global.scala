@@ -144,7 +144,7 @@ class Global(settings: Settings, reporter: Reporter, projectName: String = "")
     unitOfFile.getOrElse(source.file, { println("precondition violated: "+source+" is not loaded"); new Exception().printStackTrace(); new RichCompilationUnit(source) })
 
   /** Work through toBeRemoved list to remove any units.
-   *  Then return optionlly unit associated with given source.
+   *  Then return optionally unit associated with given source.
    */
   protected[interactive] def getUnit(s: SourceFile): Option[RichCompilationUnit] = {
     toBeRemoved.synchronized {
@@ -577,6 +577,22 @@ class Global(settings: Settings, reporter: Reporter, projectName: String = "")
     respond(response)(reloadSources(sources))
     demandNewCompilerRun()
   }
+
+  private[interactive] def filesDeleted(sources: List[SourceFile], response: Response[Unit]) {
+    informIDE("files deleted: " + sources)
+    val deletedFiles = sources.map(_.file).toSet
+    val deletedSyms = currentTopLevelSyms filter {sym => deletedFiles contains sym.sourceFile}
+    for (d <- deletedSyms) {
+      d.owner.info.decls unlink d
+      deletedTopLevelSyms += d
+      currentTopLevelSyms -= d
+    }
+    sources foreach (removeUnitOf(_))
+    minRunId = currentRunId
+    respond(response) ()
+    demandNewCompilerRun()
+  }
+
 
   /** A fully attributed tree located at position `pos` */
   private def typedTreeAt(pos: Position): Tree = getUnit(pos.source) match {

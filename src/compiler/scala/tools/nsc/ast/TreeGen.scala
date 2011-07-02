@@ -110,6 +110,11 @@ abstract class TreeGen {
   def mkAttributedRef(sym: Symbol): Tree =
     if (sym.owner.isClass) mkAttributedRef(sym.owner.thisType, sym)
     else mkAttributedIdent(sym)
+    
+  /** Builds an untyped reference to given symbol. */
+  def mkUnattributedRef(sym: Symbol): Tree =
+    if (sym.owner.isClass) Select(This(sym.owner), sym)
+    else Ident(sym)
 
   /** Replaces tree type with a stable type if possible */
   def stabilize(tree: Tree): Tree = {
@@ -225,14 +230,20 @@ abstract class TreeGen {
    *  which is appropriate to the given Type.
    */
   def mkZero(tp: Type): Tree = {
-    val sym = tp.typeSymbol
-    val tree =
-      if (sym == UnitClass) Literal(())
-      else if (sym == BooleanClass) Literal(false)
-      else if (isValueClass(sym)) Literal(0)
-      else if (NullClass.tpe <:< tp) Literal(null: Any)
-      else abort("Cannot determine zero for " + tp)
-    
+    val tree = tp.typeSymbol match {
+      case UnitClass    => Literal(())
+      case BooleanClass => Literal(false)
+      case FloatClass   => Literal(0.0f)
+      case DoubleClass  => Literal(0.0d)
+      case ByteClass    => Literal(0.toByte)
+      case ShortClass   => Literal(0.toShort)
+      case IntClass     => Literal(0)
+      case LongClass    => Literal(0L)
+      case CharClass    => Literal(0.toChar)
+      case _            => 
+        if (NullClass.tpe <:< tp) Literal(null: Any)
+        else abort("Cannot determine zero for " + tp)
+    }    
     tree setType tp
   }
 
@@ -255,7 +266,7 @@ abstract class TreeGen {
   def mkSoftRef(expr: Tree): Tree = New(TypeTree(SoftReferenceClass.tpe), List(List(expr)))
 
   def mkCached(cvar: Symbol, expr: Tree): Tree = {
-    val cvarRef = if (cvar.owner.isClass) Select(This(cvar.owner), cvar) else Ident(cvar)
+    val cvarRef = mkUnattributedRef(cvar)
     Block(
       List(
         If(Apply(Select(cvarRef, nme.eq), List(Literal(Constant(null)))),
@@ -265,17 +276,25 @@ abstract class TreeGen {
     )
   }
 
+  // Builds a tree of the form "{ lhs = rhs ; lhs  }"
+  def mkAssignAndReturn(lhs: Symbol, rhs: Tree): Tree = {
+    val lhsRef = mkUnattributedRef(lhs)
+    Block(Assign(lhsRef, rhs) :: Nil, lhsRef)
+  }
+
   def mkModuleVarDef(accessor: Symbol) = {
-    val mval = accessor.owner.newVariable(accessor.pos.focus, nme.moduleVarName(accessor.name))
-      .setInfo(accessor.tpe.finalResultType)
-      .setFlag(LAZY)
-      .setFlag(MODULEVAR)
-    mval.setLazyAccessor(accessor)
+    val mval = (
+      accessor.owner.newVariable(accessor.pos.focus, nme.moduleVarName(accessor.name))
+      setInfo accessor.tpe.finalResultType
+      setFlag (MODULEVAR)
+    )
+    
+    mval.addAnnotation(AnnotationInfo(VolatileAttr.tpe, Nil, Nil))
     if (mval.owner.isClass) {
       mval setFlag (PRIVATE | LOCAL | SYNTHETIC)
       mval.owner.info.decls.enter(mval)
     }
-    ValDef(mval, EmptyTree)
+    ValDef(mval)
   }
   
   // def m: T = { if (m$ eq null) m$ = new m$class(...) m$ }
@@ -413,11 +432,14 @@ abstract class TreeGen {
    *  The idiom works only if the condition is using a volatile field.
    *  @see http://www.cs.umd.edu/~pugh/java/memoryModel/DoubleCheckedLocking.html
    */
-  def mkDoubleCheckedLocking(clazz: Symbol, cond: Tree, syncBody: List[Tree], stats: List[Tree]): Tree = {
+  def mkDoubleCheckedLocking(clazz: Symbol, cond: Tree, syncBody: List[Tree], stats: List[Tree]): Tree =
+    mkDoubleCheckedLocking(mkAttributedThis(clazz), cond, syncBody, stats)
+  
+  def mkDoubleCheckedLocking(attrThis: Tree, cond: Tree, syncBody: List[Tree], stats: List[Tree]): Tree = {
     If(cond,
        Block(
          mkSynchronized(
-           mkAttributedThis(clazz),
+           attrThis,
            If(cond, Block(syncBody: _*), EmptyTree)) ::
          stats: _*),
        EmptyTree)
