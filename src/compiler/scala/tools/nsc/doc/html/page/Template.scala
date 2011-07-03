@@ -204,7 +204,7 @@ class Template(tpl: DocTemplateEntity) extends HtmlPage {
       case dte: DocTemplateEntity if isSelf =>
         // comment of class itself
         <xml:group>
-          <div id="comment" class="fullcommenttop">{ memberToCommentBodyHtml(mbr, isSelf = true) }</div>
+          { memberToFullCommentHtml(mbr, isSelf = true) }
         </xml:group>
       case dte: DocTemplateEntity if mbr.comment.isDefined =>
         // comment of inner, documented class (only short comment, full comment is on the class' own page)
@@ -242,6 +242,9 @@ class Template(tpl: DocTemplateEntity) extends HtmlPage {
     else
       <p class="shortcomment cmt">{ memberToUseCaseCommentHtml(mbr, isSelf) }{ inlineToHtml(mbr.comment.get.short) }</p>
   }
+
+  def memberToFullCommentHtml(mbr: MemberEntity, isSelf: Boolean): NodeSeq =
+    <div id="comment" class="fullcommenttop">{ memberToCommentBodyHtml(mbr, isSelf) }</div>
 
   def memberToInlineCommentHtml(mbr: MemberEntity, isSelf: Boolean): NodeSeq =
     <p class="comment cmt">{ inlineToHtml(mbr.comment.get.short) }</p>
