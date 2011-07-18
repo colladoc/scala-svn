@@ -44,7 +44,7 @@ class Template(tpl: DocTemplateEntity) extends HtmlPage {
   /* for body, there is a special case for AnyRef, otherwise AnyRef appears like a package/object
    * this problem should be fixed, this implementation is just a patch 
    */
-  val body =
+  def body =
     <body class={ if (tpl.isTrait || tpl.isClass || tpl.qualifiedName == "scala.AnyRef") "type" else "value" } onload="windowTitle();">
 
       { if (tpl.isRootPackage || tpl.inTemplate.isRootPackage)
