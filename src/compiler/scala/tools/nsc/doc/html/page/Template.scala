@@ -45,7 +45,7 @@ class Template(tpl: DocTemplateEntity) extends HtmlPage {
   /* for body, there is a special case for AnyRef, otherwise AnyRef appears like a package/object
    * this problem should be fixed, this implementation is just a patch 
    */
-  val body = {
+  def body = {
     val templateName = if (tpl.isRootPackage) "root package" else tpl.name
     val displayName = tpl.companion match {
       case Some(companion) if (companion.visibility.isPublic && companion.inSource != None) =>
